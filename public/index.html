@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quét Tiếng Nhật & Furigana</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 16px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      color: var(--primary-color);
+      margin-bottom: 4px;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .upload-section {
+      background: var(--card-bg);
+      border: 2px dashed var(--primary-color);
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: background-color 0.2s;
+    }
+
+    .upload-section:active {
+      background-color: #eep2ff;
+    }
+
+    .upload-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--primary-color);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .upload-label svg {
+      width: 40px;
+      height: 40px;
+    }
+
+    #imageInput {
+      display: none;
+    }
+
+    #previewContainer {
+      display: none;
+      margin-top: 12px;
+    }
+
+    #previewImage {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    /* Hiệu ứng Loading */
+    .loading-box {
+      display: none;
+      text-align: center;
+      padding: 30px 0;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e7ff;
+      border-top: 4px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Khung hiển thị kết quả */
+    .result-card {
+      display: none;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      margin-bottom: 20px;
+    }
+
+    .result-card h2 {
+      font-size: 1.1rem;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      color: var(--primary-color);
+    }
+
+    /* Định dạng CSS cho Ruby / Furigana */
+    .text-content {
+      font-size: 1.3rem;
+      line-height: 2.2;
+      word-break: break-word;
+      padding: 8px 0;
+    }
+
+    ruby {
+      ruby-align: center;
+    }
+
+    rt {
+      font-size: 0.55em;
+      color: #ef4444;
+      font-weight: bold;
+      user-select: none;
+    }
+
+    /* Bảng từ vựng */
+    .vocab-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+
+    .vocab-table th, .vocab-table td {
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 6px;
+      text-align: left;
+    }
+
+    .vocab-table th {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .vocab-word {
+      font-weight: bold;
+      font-size: 1.05rem;
+    }
+
+    .vocab-reading {
+      color: #ef4444;
+      font-size: 0.85rem;
+    }
+
+    .vocab-type {
+      display: inline-block;
+      background: #e0e7ff;
+      color: var(--primary-color);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Thông báo lỗi */
+    .error-box {
+      display: none;
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Quét Văn Bản Tiếng Nhật</h1>
+    <p>Chụp ảnh để đính kèm Furigana & tra từ vựng tự động</p>
+  </header>
+
+  <!-- Khu vực tải / chụp ảnh -->
+  <div class="upload-section" onclick="document.getElementById('imageInput').click()">
+    <div class="upload-label">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h0.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <span>Chụp ảnh hoặc Chọn từ thư viện</span>
+    </div>
+    <!-- capture="environment" kích hoạt camera sau trên điện thoại -->
+    <input type="file" id="imageInput" accept="image/*" capture="environment">
+    
+    <div id="previewContainer">
+      <img id="previewImage" src="" alt="Ảnh xem trước">
+    </div>
+  </div>
+
+  <!-- Thông báo lỗi -->
+  <div id="errorBox" class="error-box"></div>
+
+  <!-- Hiệu ứng Spinner -->
+  <div id="loadingBox" class="loading-box">
+    <div class="spinner"></div>
+    <p>Đang phân tích văn bản & tạo Furigana...</p>
+  </div>
+
+  <!-- Khung 1: Đoạn văn có Furigana -->
+  <div id="textResultCard" class="result-card">
+    <h2>Văn Bản Tiếng Nhật (Có Furigana)</h2>
+    <div id="annotatedText" class="text-content"></div>
+  </div>
+
+  <!-- Khung 2: Bảng từ vựng -->
+  <div id="vocabResultCard" class="result-card">
+    <h2>Danh Sách Từ Vựng</h2>
+    <table class="vocab-table">
+      <thead>
+        <tr>
+          <th>Từ vựng</th>
+          <th>Loại từ</th>
+          <th>Nghĩa tiếng Việt</th>
+        </tr>
+      </thead>
+      <tbody id="vocabList"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImage = document.getElementById('previewImage');
+    const loadingBox = document.getElementById('loadingBox');
+    const errorBox = document.getElementById('errorBox');
+    const textResultCard = document.getElementById('textResultCard');
+    const vocabResultCard = document.getElementById('vocabResultCard');
+    const annotatedText = document.getElementById('annotatedText');
+    const vocabList = document.getElementById('vocabList');
+
+    imageInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Hiển thị ảnh xem trước
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        previewImage.src = evt.target.result;
+        previewContainer.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // Đưa về trạng thái gửi dữ liệu
+      resetUI();
+      loadingBox.style.display = 'block';
+
+      try {
+        // Nén & chuyển đổi ảnh thành mã Base64
+        const base64Data = await convertFileToBase64(file);
+
+        // Gửi POST request lên endpoint serverless
+        const response = await fetch('/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: base64Data,
+            mimeType: file.type || 'image/jpeg'
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Đã có lỗi xảy ra từ máy chủ.');
+        }
+
+        // Hiển thị kết quả thành công
+        renderResults(data);
+
+      } catch (err) {
+        showError(err.message || 'Không thể kết nối đến máy chủ hoặc nhận diện ảnh.');
+      } finally {
+        loadingBox.style.display = 'none';
+      }
+    });
+
+    // Hàm hỗ trợ chuyển đổi tệp thành Base64
+    function convertFileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.readAsDataURL(file);
+        r.onload = () => resolve(r.result);
+        r.onerror = error => reject(error);
+      });
+    }
+
+    function renderResults(data) {
+      // 1. Render văn bản Furigana
+      annotatedText.innerHTML = data.annotatedHtml;
+      textResultCard.style.display = 'block';
+
+      // 2. Render bảng từ vựng
+      vocabList.innerHTML = '';
+      if (data.vocabulary && data.vocabulary.length > 0) {
+        data.vocabulary.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <div class="vocab-word">${escapeHtml(item.word)}</div>
+              <div class="vocab-reading">${escapeHtml(item.reading)}</div>
+            </td>
+            <td><span class="vocab-type">${escapeHtml(item.type)}</span></td>
+            <td>${escapeHtml(item.meaning)}</td>
+          `;
+          vocabList.appendChild(tr);
+        });
+        vocabResultCard.style.display = 'block';
+      }
+    }
+
+    function resetUI() {
+      errorBox.style.display = 'none';
+      textResultCard.style.display = 'none';
+      vocabResultCard.style.display = 'none';
+    }
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.style.display = 'block';
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
