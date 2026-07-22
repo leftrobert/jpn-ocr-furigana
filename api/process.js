@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 export default async function handler(req, res) {
   // Chỉ cho phép phương thức POST
@@ -13,15 +13,50 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Không tìm thấy dữ liệu hình ảnh.' });
     }
 
-    // Đọc API Key an toàn từ biến môi trường của Vercel
+    // Đọc API Key từ biến môi trường của Vercel
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'Cấu hình Server thiếu GEMINI_API_KEY.' });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Tách phần tiền tố data:image/...;base64, nếu có
+    // Định nghĩa JSON Schema trả về
+    const responseSchema = {
+      type: SchemaType.OBJECT,
+      properties: {
+        annotatedHtml: {
+          type: SchemaType.STRING,
+          description: 'Đoạn văn bản HTML chứa các thẻ <ruby> kèm Furigana',
+        },
+        vocabulary: {
+          type: SchemaType.ARRAY,
+          description: 'Danh sách các từ vựng nổi bật trong văn bản',
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              word: { type: SchemaType.STRING, description: 'Từ vựng tiếng Nhật (Ví dụ: 漢字)' },
+              reading: { type: SchemaType.STRING, description: 'Cách đọc Furigana/Hiragana (Ví dụ: かんじ)' },
+              type: { type: SchemaType.STRING, description: 'Loại từ bằng tiếng Việt (Ví dụ: Danh từ, Động từ)' },
+              meaning: { type: SchemaType.STRING, description: 'Nghĩa tiếng Việt (Ví dụ: Chữ Hán)' },
+            },
+            required: ['word', 'reading', 'type', 'meaning'],
+          },
+        },
+      },
+      required: ['annotatedHtml', 'vocabulary'],
+    };
+
+    // Cấu hình Model Gemini Flash với JSON Schema
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: responseSchema,
+      },
+    });
+
+    // Tách bỏ tiền tố base64 nếu có
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
     const promptText = `
@@ -33,49 +68,18 @@ export default async function handler(req, res) {
     2. "vocabulary": Mảng danh sách các từ vựng xuất hiện trong bài (mỗi từ gồm các trường: word, reading, type, meaning bằng tiếng Việt).
     `;
 
-    // Gọi mô hình gemini-2.5-flash với Structured Outputs (JSON Schema)
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          inlineData: {
-            mimeType: mimeType || 'image/jpeg',
-            data: cleanBase64,
-          },
-        },
-        { text: promptText },
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            annotatedHtml: {
-              type: Type.STRING,
-              description: 'Đoạn văn bản HTML chứa các thẻ <ruby> kèm Furigana',
-            },
-            vocabulary: {
-              type: Type.ARRAY,
-              description: 'Danh sách các từ vựng nổi bật trong văn bản',
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  word: { type: Type.STRING, description: 'Từ vựng tiếng Nhật (Ví dụ: 漢字)' },
-                  reading: { type: Type.STRING, description: 'Cách đọc Furigana/Hiragana (Ví dụ: かんじ)' },
-                  type: { type: Type.STRING, description: 'Loại từ bằng tiếng Việt (Ví dụ: Danh từ, Động từ)' },
-                  meaning: { type: Type.STRING, description: 'Nghĩa tiếng Việt (Ví dụ: Chữ Hán)' },
-                },
-                required: ['word', 'reading', 'type', 'meaning'],
-              },
-            },
-          },
-          required: ['annotatedHtml', 'vocabulary'],
-        },
+    const imagePart = {
+      inlineData: {
+        data: cleanBase64,
+        mimeType: mimeType || 'image/jpeg',
       },
-    });
+    };
 
-    const result = JSON.parse(response.text);
-    return res.status(200).json(result);
+    const result = await model.generateContent([promptText, imagePart]);
+    const responseText = result.response.text();
+    const jsonResult = JSON.parse(responseText);
+
+    return res.status(200).json(jsonResult);
 
   } catch (error) {
     console.error('Lỗi khi xử lý ảnh với Gemini:', error);
